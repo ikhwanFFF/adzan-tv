@@ -19,6 +19,10 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : Activity() {
     private lateinit var info: TextView
@@ -63,12 +67,41 @@ class MainActivity : Activity() {
     }
 
     private fun refresh() {
-        val f = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
-        val list = PrayerTimes.forDate(LocalDate.now(), Prefs.lat(this), Prefs.lon(this))
-            .joinToString("\n") { "${it.name.padEnd(8)} ${f.format(Instant.ofEpochMilli(it.timeMillis))}" }
+
+    CoroutineScope(Dispatchers.IO).launch {
+
+        val f = DateTimeFormatter.ofPattern("HH:mm")
+            .withZone(ZoneId.systemDefault())
+
+        val list = PrayerTimes.forDate(
+            LocalDate.now(),
+            Prefs.lat(this@MainActivity),
+            Prefs.lon(this@MainActivity)
+        ).joinToString("\n") {
+            "${it.name.padEnd(8)} ${
+                f.format(
+                    Instant.ofEpochMilli(it.timeMillis)
+                )
+            }"
+        }
+
         val am = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val exactOk = Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()
-        info.text = "Kota: ${Prefs.city(this)}\nStatus: ${if (enabled) "AKTIF" else "NONAKTIF"}" +
-            (if (!exactOk) "  (izin alarm tepat waktu belum diberikan)" else "") + "\n\n$list"
+
+        val exactOk =
+            Build.VERSION.SDK_INT < 31 ||
+            am.canScheduleExactAlarms()
+
+        val text =
+            "Kota: ${Prefs.city(this@MainActivity)}\n" +
+            "Status: ${if (enabled) "AKTIF" else "NONAKTIF"}" +
+            (if (!exactOk)
+                " (izin alarm tepat waktu belum diberikan)"
+             else "") +
+            "\n\n$list"
+
+        withContext(Dispatchers.Main) {
+            info.text = text
+        }
     }
+}
 }
